@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
-POC sterowania żarówką Yeelight.
+Yeelight bulb control POC.
 
-Automatycznie znajduje żarówki w sieci lokalnej i przełącza stan pierwszej znalezionej.
-Wymaga włączonego "LAN Control" w aplikacji Yeelight Classic.
+Automatically discovers bulbs on the local network and toggles the first one found.
+Requires "LAN Control" enabled in the Yeelight Classic app.
 """
 
 from yeelight import Bulb, discover_bulbs
 
 
-print("Szukam żarówek w sieci...")
+print("Searching for bulbs on the network...")
 bulbs = discover_bulbs()
 
 if bulbs:
     first_bulb = bulbs[0]
     bulb_ip = first_bulb.get("ip")
-    print(f"Znaleziono żarówkę: {bulb_ip}")
+    print(f"Found bulb: {bulb_ip}")
 
     bulb = Bulb(bulb_ip)
     bulb.toggle()
-    print("Przełączono stan żarówki!")
+    print("Bulb toggled!")
 else:
-    print("W sieci nie ma żarówek lub nie mają włączonego LAN Control")
+    print("No bulbs on the network or LAN Control is not enabled")
     exit(1)

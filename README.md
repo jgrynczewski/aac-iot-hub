@@ -1,48 +1,61 @@
-# Jak uruchomić sterowanie żarówką Yeelight
+# AAC IoT Hub
 
-## Krok 1: Zainstaluj bibliotekę
+**Local smart home device control hub**
+
+## About
+
+AAC IoT Hub is a project for local IoT device control without cloud dependency. Currently supports:
+
+- 🔆 **Yeelight** - WiFi bulbs (Yeelight Color Bulb, Yeelight Duo, etc.)
+- 🔆 **Shelly** - Shelly bulbs and devices (Shelly Bulb Duo RGBW, Gen1 and Gen2+)
+
+## Project Status
+
+🚧 **Early POC (Proof of Concept)** - simple scripts for testing device communication are currently available.
+
+## Quick Start
+
+### Install dependencies
 
 ```bash
+# For Yeelight
 pip install yeelight
+
+# For Shelly
+pip install zeroconf requests
 ```
 
-## Krok 2: Włącz tryb LAN Control w żarówce
-
-⚠️ **WAŻNE: Musisz używać aplikacji Yeelight Classic!**
-
-Opcja **LAN Control** jest dostępna **TYLKO** w aplikacji **[Yeelight Classic](https://home.yeelight.de/en/support/lan-control/)**.
-
-**W aplikacji Xiaomi Home NIE MA tej opcji!** Jeśli masz żarówkę dodaną w Xiaomi Home, musisz zainstalować osobno aplikację Yeelight Classic.
-
-**Kroki:**
-1. Pobierz i zainstaluj aplikację **Yeelight Classic** na telefonie (Android/iOS)
-2. Dodaj swoją żarówkę do aplikacji Yeelight Classic
-3. Kliknij na swoją żarówkę
-4. Wejdź w ustawienia żarówki (ikona w prawym dolnym rogu)
-5. Znajdź opcję **"Sterowanie poprzez LAN"**
-6. **WŁĄCZ** tę opcję! Bez tego skrypt nie zadziała.
-
-## Krok 3: Uruchom skrypt
+### Run
 
 ```bash
+# Yeelight control
 python yeelight_toggle.py
+
+# Shelly control
+python shelly_toggle.py
 ```
 
-Skrypt automatycznie znajdzie żarówki w sieci i przełączy stan pierwszej znalezionej.
+## Device Documentation
 
-Żarówka powinna się przełączyć (włączona → wyłączona lub wyłączona → włączona).
+- **[Yeelight](docs/yeelight.md)** - configuration, issues, libraries
+- **[Shelly](docs/shelly.md)** - configuration, Gen1/Gen2 differences, libraries, troubleshooting
 
-## Rozwiązywanie problemów
+## Roadmap
 
-- **"W sieci nie ma żarówek"** - Upewnij się że:
-  - Żarówka jest włączona (podłączona do prądu)
-  - Opcja **Sterowanie poprzez LAN** jest włączona w aplikacji Yeelight Classic
-  - Komputer i żarówka są w tej samej sieci WiFi
+Planned features:
 
-- **"BulbException: Can't connect"** - Tryb LAN Control nie jest włączony lub żarówka nie odpowiada
+- [ ] REST API for device control
+- [ ] Containerization (Docker)
+- [ ] Support for more features (colors, brightness, effects)
+- [ ] Support for additional IoT device types
 
-- **Skrypt nic nie znajduje mimo włączonego LAN Control** - Sprawdź firewall na komputerze (może blokować broadcast UDP)
+## Technologies
 
-## Dokumentacja
+- **Python 3.12**
+- **yeelight** - Yeelight bulb communication
+- **zeroconf** - mDNS discovery for Shelly
+- **requests** - HTTP API for Shelly
 
-- [Dokumentacja biblioteki python-yeelight](https://yeelight.readthedocs.io/en/latest/) - pełna dokumentacja z opisem wszystkich dostępnych metod i funkcji
+## License
+
+MIT
