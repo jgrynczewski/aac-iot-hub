@@ -1,0 +1,17 @@
+services:
+  aac-iot-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aac-iot-hub
+    network_mode: host  # Required for SSDP discovery (ADR-002)
+    restart: unless-stopped
+    environment:
+      - AAC_LOG_LEVEL=${AAC_LOG_LEVEL:-info}
+      - AAC_API_PORT=${AAC_API_PORT:-8765}
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8765/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
