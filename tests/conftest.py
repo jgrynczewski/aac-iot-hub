@@ -38,6 +38,11 @@ def mock_yeelight_bulb():
     bulb.turn_on.return_value = ["ok"]
     bulb.turn_off.return_value = ["ok"]
     bulb.toggle.return_value = ["ok"]
+    bulb.set_brightness.return_value = ["ok"]
+    bulb.set_rgb.return_value = ["ok"]
+    bulb.set_color_temp.return_value = ["ok"]
+    bulb.start_flow.return_value = ["ok"]
+    bulb.stop_flow.return_value = ["ok"]
     return bulb
 
 

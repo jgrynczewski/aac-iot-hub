@@ -76,14 +76,50 @@ def test_get_device_capabilities(client, mock_yeelight_adapter):
     assert data["device_id"] == device_id
     assert data["type"] == "yeelight"
     assert "capabilities" in data
-    assert "power" in data["capabilities"]
 
+    # Power capability
+    assert "power" in data["capabilities"]
     power_capability = data["capabilities"]["power"]
     assert power_capability["widget"] == "toggle"
     assert power_capability["label"] == "Power"
     assert "on" in power_capability["states"]
     assert "off" in power_capability["states"]
     assert "toggle" in power_capability["states"]
+
+    # Brightness capability
+    assert "brightness" in data["capabilities"]
+    brightness_capability = data["capabilities"]["brightness"]
+    assert brightness_capability["widget"] == "slider"
+    assert brightness_capability["label"] == "Brightness"
+    assert brightness_capability["min"] == 1
+    assert brightness_capability["max"] == 100
+    assert brightness_capability["step"] == 1
+    assert brightness_capability["unit"] == "%"
+    assert "current" in brightness_capability
+
+    # Color capability
+    assert "color" in data["capabilities"]
+    color_capability = data["capabilities"]["color"]
+    assert color_capability["widget"] == "color_picker"
+    assert color_capability["label"] == "Color"
+    assert "presets" in color_capability
+    assert len(color_capability["presets"]) == 8  # 8 preset colors
+
+    # Temperature capability
+    assert "temperature" in data["capabilities"]
+    temperature_capability = data["capabilities"]["temperature"]
+    assert temperature_capability["widget"] == "selector"
+    assert temperature_capability["label"] == "Color Temperature"
+    assert "options" in temperature_capability
+    assert len(temperature_capability["options"]) == 3  # 3 temperature presets
+
+    # Effects capability
+    assert "effects" in data["capabilities"]
+    effects_capability = data["capabilities"]["effects"]
+    assert effects_capability["widget"] == "effect_buttons"
+    assert effects_capability["label"] == "Light Effects"
+    assert "available" in effects_capability
+    assert len(effects_capability["available"]) == 6  # 6 flow effects
 
 
 def test_get_capabilities_device_not_found(client):
@@ -194,7 +230,7 @@ def test_control_device_unsupported_capability(client, mock_yeelight_adapter):
 
     response = client.put(
         f"/api/v1/devices/{device_id}/control",
-        json={"properties": {"brightness": 80}}
+        json={"properties": {"volume": 80}}  # volume is not supported
     )
 
     assert response.status_code == 400
@@ -244,3 +280,179 @@ def test_discover_devices_no_devices_found(client):
         assert data["discovered"] == 0
         assert data["device_ids"] == []
         assert data["devices"] == []
+
+
+def test_start_effect_success(client, mock_yeelight_adapter):
+    """Test POST /api/v1/devices/{id}/effect with valid effect."""
+    device_registry.register(mock_yeelight_adapter)
+    device_id = mock_yeelight_adapter.device_id
+
+    response = client.post(
+        f"/api/v1/devices/{device_id}/effect",
+        json={"effect_name": "disco"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["success"] is True
+    assert data["data"]["device_id"] == device_id
+    assert data["data"]["effect"] == "disco"
+    assert data["data"]["status"] == "started"
+
+    # Verify start_flow was called
+    mock_yeelight_adapter.bulb.start_flow.assert_called_once()
+
+
+def test_start_effect_all_effects(client, mock_yeelight_adapter):
+    """Test POST /api/v1/devices/{id}/effect with all available effects."""
+    device_registry.register(mock_yeelight_adapter)
+    device_id = mock_yeelight_adapter.device_id
+
+    effects = ["disco", "pulse", "strobe", "rainbow", "police", "ocean"]
+
+    for effect in effects:
+        # Reset mock
+        mock_yeelight_adapter.bulb.start_flow.reset_mock()
+
+        response = client.post(
+            f"/api/v1/devices/{device_id}/effect",
+            json={"effect_name": effect}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["success"] is True
+        assert data["data"]["effect"] == effect
+        assert data["data"]["status"] == "started"
+        mock_yeelight_adapter.bulb.start_flow.assert_called_once()
+
+
+def test_start_effect_device_not_found(client):
+    """Test POST /api/v1/devices/{id}/effect with non-existent device."""
+    response = client.post(
+        "/api/v1/devices/nonexistent/effect",
+        json={"effect_name": "disco"}
+    )
+
+    assert response.status_code == 404
+    data = response.json()
+
+    assert data["success"] is False
+    assert "not found" in data["error"]["message"].lower()
+
+
+def test_start_effect_invalid_effect_name(client, mock_yeelight_adapter):
+    """Test POST /api/v1/devices/{id}/effect with invalid effect name."""
+    device_registry.register(mock_yeelight_adapter)
+    device_id = mock_yeelight_adapter.device_id
+
+    response = client.post(
+        f"/api/v1/devices/{device_id}/effect",
+        json={"effect_name": "invalid_effect"}
+    )
+
+    assert response.status_code == 400
+    data = response.json()
+
+    assert data["success"] is False
+    assert "unknown effect" in data["error"]["message"].lower()
+    assert "available effects" in data["error"]["message"].lower()
+
+    # Verify start_flow was NOT called
+    mock_yeelight_adapter.bulb.start_flow.assert_not_called()
+
+
+def test_start_effect_case_insensitive(client, mock_yeelight_adapter):
+    """Test POST /api/v1/devices/{id}/effect is case-insensitive."""
+    device_registry.register(mock_yeelight_adapter)
+    device_id = mock_yeelight_adapter.device_id
+
+    # Test uppercase
+    response = client.post(
+        f"/api/v1/devices/{device_id}/effect",
+        json={"effect_name": "DISCO"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["success"] is True
+    assert data["data"]["status"] == "started"
+
+    # Reset mock
+    mock_yeelight_adapter.bulb.start_flow.reset_mock()
+
+    # Test mixed case
+    response = client.post(
+        f"/api/v1/devices/{device_id}/effect",
+        json={"effect_name": "RainBow"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["success"] is True
+    assert data["data"]["status"] == "started"
+
+
+def test_stop_effect_success(client, mock_yeelight_adapter):
+    """Test POST /api/v1/devices/{id}/effect/stop."""
+    device_registry.register(mock_yeelight_adapter)
+    device_id = mock_yeelight_adapter.device_id
+
+    response = client.post(f"/api/v1/devices/{device_id}/effect/stop")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["success"] is True
+    assert data["data"]["device_id"] == device_id
+    assert data["data"]["status"] == "stopped"
+
+    # Verify stop_flow was called
+    mock_yeelight_adapter.bulb.stop_flow.assert_called_once()
+
+
+def test_stop_effect_device_not_found(client):
+    """Test POST /api/v1/devices/{id}/effect/stop with non-existent device."""
+    response = client.post("/api/v1/devices/nonexistent/effect/stop")
+
+    assert response.status_code == 404
+    data = response.json()
+
+    assert data["success"] is False
+    assert "not found" in data["error"]["message"].lower()
+
+
+def test_effect_workflow(client, mock_yeelight_adapter):
+    """Test full workflow: start effect -> stop effect."""
+    device_registry.register(mock_yeelight_adapter)
+    device_id = mock_yeelight_adapter.device_id
+
+    # Start effect
+    start_response = client.post(
+        f"/api/v1/devices/{device_id}/effect",
+        json={"effect_name": "ocean"}
+    )
+
+    assert start_response.status_code == 200
+    start_data = start_response.json()
+
+    assert start_data["success"] is True
+    assert start_data["data"]["effect"] == "ocean"
+    assert start_data["data"]["status"] == "started"
+
+    mock_yeelight_adapter.bulb.start_flow.assert_called_once()
+
+    # Stop effect
+    stop_response = client.post(f"/api/v1/devices/{device_id}/effect/stop")
+
+    assert stop_response.status_code == 200
+    stop_data = stop_response.json()
+
+    assert stop_data["success"] is True
+    assert stop_data["data"]["status"] == "stopped"
+
+    mock_yeelight_adapter.bulb.stop_flow.assert_called_once()

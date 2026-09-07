@@ -14,6 +14,7 @@ from .device import (
 # Request models
 from .requests import (
     DeviceControlRequest,
+    EffectStartRequest,
 )
 
 # Response models
@@ -30,6 +31,7 @@ __all__ = [
     "DeviceCapabilities",
     # Request models
     "DeviceControlRequest",
+    "EffectStartRequest",
     # Response models
     "SuccessResponse",
     "ErrorDetail",

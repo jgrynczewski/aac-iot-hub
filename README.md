@@ -2,13 +2,13 @@
 
 **Local IoT device control hub with REST API**
 
-**Status:** ✅ Production Ready (Manual Testing Passed - 2026-05-09)
+**Status:** ✅ MVP v2.0 Complete (2026-09-06)
 
-Control your smart home devices locally without cloud dependency. Currently supports Yeelight bulbs with unified REST API.
+Control your smart home devices locally without cloud dependency. Currently supports Yeelight bulbs with full color control, brightness, temperature, and effects.
 
 ## Quick Start
 
-**This project is production-ready and has been tested with real Yeelight devices.**
+**This project is production-ready with comprehensive device control capabilities.**
 
 ### Prerequisites
 - Docker & Docker Compose
@@ -46,34 +46,64 @@ curl -X POST http://localhost:8765/api/v1/devices/discover
 curl http://localhost:8765/api/v1/devices
 ```
 
-### Control device
+### Get device capabilities
+```bash
+curl http://localhost:8765/api/v1/devices/{device_id}/capabilities
+```
+
+Returns full metadata for dynamic UI rendering including:
+- Power control (toggle)
+- Brightness (slider 1-100)
+- Color palette (8 preset colors)
+- Color temperature (3 presets: warm/neutral/cold)
+- Light effects (6 animations)
+
+### Control device properties
+
+All device control uses a **single universal endpoint**: `PUT /devices/{device_id}/control`
+
 ```bash
 # Turn on
 curl -X PUT http://localhost:8765/api/v1/devices/{device_id}/control \
   -H "Content-Type: application/json" \
   -d '{"properties": {"power": "on"}}'
 
-# Turn off
+# Set brightness
 curl -X PUT http://localhost:8765/api/v1/devices/{device_id}/control \
   -H "Content-Type: application/json" \
-  -d '{"properties": {"power": "off"}}'
+  -d '{"properties": {"brightness": 80}}'
 
-# Toggle power
+# Set color (preset name)
 curl -X PUT http://localhost:8765/api/v1/devices/{device_id}/control \
   -H "Content-Type: application/json" \
-  -d '{"properties": {"power": "toggle"}}'
+  -d '{"properties": {"color": "red"}}'
+
+# Set color temperature (preset name)
+curl -X PUT http://localhost:8765/api/v1/devices/{device_id}/control \
+  -H "Content-Type: application/json" \
+  -d '{"properties": {"temperature": "warm"}}'
+
+# Combine multiple properties
+curl -X PUT http://localhost:8765/api/v1/devices/{device_id}/control \
+  -H "Content-Type: application/json" \
+  -d '{"properties": {"power": "on", "brightness": 100, "color": "blue"}}'
 ```
 
-**Note:** Currently only power control is implemented. Brightness, color, and other features are planned for future releases.
+### Light effects
 
-### Get device capabilities
 ```bash
-curl http://localhost:8765/api/v1/devices/{device_id}/capabilities
+# Start effect (disco, pulse, strobe, rainbow, police, ocean)
+curl -X POST http://localhost:8765/api/v1/devices/{device_id}/effect \
+  -H "Content-Type: application/json" \
+  -d '{"effect_name": "disco"}'
+
+# Stop effect
+curl -X POST http://localhost:8765/api/v1/devices/{device_id}/effect/stop
 ```
 
 **Interactive API docs:** `http://localhost:8765/docs` (Swagger UI)
 
-**Complete API examples:** See [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md) for detailed usage guide with all endpoints and error handling.
+**Complete API examples:** See [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md) for detailed usage guide.
 
 ## Configuration
 
@@ -97,6 +127,10 @@ AAC_LOG_LEVEL=debug
 
 ### Local setup
 ```bash
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
 # Install dependencies
 pip install -r requirements.txt
 
@@ -106,6 +140,9 @@ uvicorn app.main:app --reload --port 8765
 
 ### Run tests
 ```bash
+# Activate virtual environment
+source .venv/bin/activate
+
 # Run all tests
 pytest
 
@@ -113,18 +150,29 @@ pytest
 pytest -v
 
 # Run specific test file
-pytest tests/test_health.py
+pytest tests/test_devices.py
 
 # Run with coverage
 pytest --cov=app tests/
+
+# Run specific test
+pytest tests/test_devices.py::test_get_device_capabilities -v
 ```
 
 **Test Summary:**
-- 39 integration tests covering all API endpoints
+- **127 tests** covering all API endpoints and property handlers
 - Mock-based testing (no real hardware required)
 - Full coverage of error handling and edge cases
+- Tests for power, brightness, color, temperature, and effects
 
 ## Architecture
+
+### Strategy Pattern + Registry
+Uses **Open/Closed Principle (OCP)** compliant architecture:
+- Single universal control endpoint
+- Property handlers for validation and execution
+- Zero `if/elif` chains - fully extensible
+- Adding new property requires **zero endpoint changes**
 
 See [Architecture Decision Records](docs/adr/) for design decisions:
 - [ADR-000](docs/adr/adr-000-device-type-selection.md) - Device type selection (Yeelight)
@@ -132,53 +180,57 @@ See [Architecture Decision Records](docs/adr/) for design decisions:
 - [ADR-002](docs/adr/adr-002-docker-network-configuration.md) - Network configuration
 - [ADR-003](docs/adr/adr-003-http-api-protocol.md) - REST API design
 
+**Implementation Plan:** See [docs/MVP_v2.0_PLAN.md](docs/MVP_v2.0_PLAN.md) for detailed architecture and implementation phases.
+
 ## Supported Devices
 
 ### Current
-- **Yeelight** - Color bulbs, tunable white bulbs
+- **Yeelight** - Full control (power, brightness, 8 colors, 3 temperatures, 6 effects)
 
 ### Planned
 - **Shelly** - RGBW bulbs (when discovery issues are resolved)
 
 ### Research
-- [Device Expansion Research](docs/future-devices.md) - Analysis of additional IoT devices (robots with cameras, drones, IP cameras, sensors) for potential integration
+- [Device Expansion Research](docs/future-devices.md) - Analysis of additional IoT devices
 
-## POC Scripts
+## Features
 
-Early proof-of-concept scripts are available:
+### Device Control (MVP v2.0 ✅)
+- ✅ Power on/off/toggle
+- ✅ Brightness (1-100 slider)
+- ✅ Color palette (8 preset colors: blue, green, orange, pink, purple, red, white, yellow)
+- ✅ Color temperature (3 presets: cold 6500K, neutral 4000K, warm 2700K)
+- ✅ Light effects (6 animations: disco, pulse, strobe, rainbow, police, ocean)
 
-### Yeelight POC
-```bash
-pip install yeelight
-python yeelight_toggle.py
-```
-
-### Shelly POC
-```bash
-pip install zeroconf requests
-python shelly_toggle.py
-```
-
-See original device documentation:
-- [Yeelight POC docs](docs/yeelight.md)
-- [Shelly POC docs](docs/shelly.md)
+### API Architecture
+- ✅ Universal control endpoint (Strategy Pattern)
+- ✅ Property handlers with validation
+- ✅ Dynamic capabilities endpoint for GUI
+- ✅ Separate effect endpoints (start/stop)
+- ✅ Full error handling and validation
 
 ## Project Status
 
-**Current:** ✅ MVP Complete - Production Ready (100% complete)
+**Current:** ✅ MVP v2.0 Complete (100% complete - 2026-09-06)
 
 **Completed:**
-- [x] REST API for device control (power on/off/toggle)
-- [x] Docker containerization with host network mode
-- [x] Unified API architecture for multiple device types
-- [x] SSDP discovery for Yeelight devices
-- [x] Manual testing passed (2026-05-09)
-- [x] Integration tests - 39 tests passing (2026-05-09)
+- [x] MVP v1.0 - Basic power control
+- [x] MVP v2.0 - Full device control:
+  - [x] Property Handler System (Strategy Pattern + Registry)
+  - [x] Brightness control (1-100)
+  - [x] RGB color control (8 preset colors)
+  - [x] Color temperature (3 presets)
+  - [x] Flow effects (6 animations)
+  - [x] Extended capabilities endpoint
+- [x] 127 integration tests passing
+- [x] Docker deployment with health checks
+- [x] Interactive API documentation
 
-**Next Phase (Post-MVP):**
-- [ ] Additional capabilities (brightness, color, effects)
+**Next Phase (Post-MVP v2.0):**
+- [ ] Scene presets (reading, movie, dinner modes)
+- [ ] Favorites system (3 quick-access slots)
+- [ ] Persistence (SQLite for devices/settings)
 - [ ] WebSocket for real-time updates
-- [ ] Persistence (device registry storage)
 - [ ] Web UI
 - [ ] Additional device types (Shelly, etc.)
 
@@ -192,6 +244,7 @@ See [docs/STATUS.md](docs/STATUS.md) for detailed implementation status.
 - **Pydantic** - Data validation
 - **Docker** - Containerization
 - **yeelight** - Yeelight device library
+- **pytest** - Testing framework
 
 ## License
 

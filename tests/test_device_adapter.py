@@ -144,3 +144,113 @@ def test_yeelight_adapter_initialization():
         assert adapter.ip == "192.168.1.100"
         assert adapter.model == "color4"
         assert adapter._get_type() == "yeelight"
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_brightness_50(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_brightness with 50%."""
+    mock_yeelight_adapter.bulb.set_brightness = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_brightness(50)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_brightness.assert_called_once_with(50)
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_brightness_min(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_brightness with minimum value (1)."""
+    mock_yeelight_adapter.bulb.set_brightness = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_brightness(1)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_brightness.assert_called_once_with(1)
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_brightness_max(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_brightness with maximum value (100)."""
+    mock_yeelight_adapter.bulb.set_brightness = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_brightness(100)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_brightness.assert_called_once_with(100)
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_rgb_red(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_rgb with red color (255, 0, 0)."""
+    mock_yeelight_adapter.bulb.set_rgb = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_rgb(255, 0, 0)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_rgb.assert_called_once_with(255, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_rgb_green(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_rgb with green color (0, 255, 0)."""
+    mock_yeelight_adapter.bulb.set_rgb = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_rgb(0, 255, 0)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_rgb.assert_called_once_with(0, 255, 0)
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_rgb_blue(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_rgb with blue color (0, 0, 255)."""
+    mock_yeelight_adapter.bulb.set_rgb = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_rgb(0, 0, 255)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_rgb.assert_called_once_with(0, 0, 255)
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_rgb_purple(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_rgb with purple color (128, 0, 128)."""
+    mock_yeelight_adapter.bulb.set_rgb = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_rgb(128, 0, 128)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_rgb.assert_called_once_with(128, 0, 128)
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_color_temp_warm(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_color_temp with warm temperature (2700K)."""
+    mock_yeelight_adapter.bulb.set_color_temp = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_color_temp(2700)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_color_temp.assert_called_once_with(2700)
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_color_temp_neutral(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_color_temp with neutral temperature (4000K)."""
+    mock_yeelight_adapter.bulb.set_color_temp = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_color_temp(4000)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_color_temp.assert_called_once_with(4000)
+
+
+@pytest.mark.asyncio
+async def test_yeelight_adapter_set_color_temp_cold(mock_yeelight_adapter):
+    """Test YeelightAdapter.set_color_temp with cold temperature (6500K)."""
+    mock_yeelight_adapter.bulb.set_color_temp = Mock(return_value=["ok"])
+
+    result = await mock_yeelight_adapter.set_color_temp(6500)
+
+    assert result is True
+    mock_yeelight_adapter.bulb.set_color_temp.assert_called_once_with(6500)

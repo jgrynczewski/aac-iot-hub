@@ -64,8 +64,18 @@ class YeelightAdapter(DeviceAdapter):
 
         Returns metadata about what controls to show:
         - power: toggle button
+        - brightness: slider (1-100)
+        - color: color picker (8 preset colors)
+        - temperature: selector (3 presets: warm/neutral/cold)
+        - effects: available flow effects
         """
+        from app.services.color_presets import get_color_names, get_temperature_names
+        from app.services.flow_effects import get_effect_names
+
         status = await self.get_status()
+
+        # Get current bulb properties for detailed state
+        props = await self._run_in_executor(self.bulb.get_properties)
 
         return DeviceCapabilities(
             device_id=self.device_id,
@@ -73,12 +83,38 @@ class YeelightAdapter(DeviceAdapter):
             model=self.model,
             capabilities={
                 "power": {
-                    "widget": "toggle",  # GUI: render toggle button
+                    "widget": "toggle",
                     "label": "Power",
                     "states": ["on", "off", "toggle"],
                     "current": status.status.power
+                },
+                "brightness": {
+                    "widget": "slider",
+                    "label": "Brightness",
+                    "min": 1,
+                    "max": 100,
+                    "step": 1,
+                    "unit": "%",
+                    "current": int(props.get("bright", 100))
+                },
+                "color": {
+                    "widget": "color_picker",
+                    "label": "Color",
+                    "presets": get_color_names(),  # ["blue", "green", "orange", "pink", ...]
+                    "current": None  # Could decode RGB from props.get("rgb") if needed
+                },
+                "temperature": {
+                    "widget": "selector",
+                    "label": "Color Temperature",
+                    "options": get_temperature_names(),  # ["cold", "neutral", "warm"]
+                    "current": None  # Could map from props.get("ct") to preset if needed
+                },
+                "effects": {
+                    "widget": "effect_buttons",
+                    "label": "Light Effects",
+                    "available": get_effect_names(),  # ["disco", "ocean", "police", ...]
+                    "description": "Animated light effects (loop until stopped)"
                 }
-                # Future: add brightness, color_temp, rgb when implemented
             },
             metadata={
                 "firmware": status.firmware,
@@ -109,6 +145,105 @@ class YeelightAdapter(DeviceAdapter):
         else:
             raise ValueError(f"Invalid power state: {state}. Use 'on', 'off', or 'toggle'")
 
+        return True
+
+    async def set_brightness(self, value: int) -> bool:
+        """
+        Set brightness level.
+
+        Args:
+            value: Brightness 1-100 (Yeelight doesn't support 0)
+
+        Returns:
+            True if successful
+
+        Raises:
+            Exception if command fails
+
+        Note:
+            Validation (1-100 range) is done in BrightnessHandler.
+            Adapter just executes the command.
+        """
+        await self._run_in_executor(self.bulb.set_brightness, value)
+        return True
+
+    async def set_rgb(self, r: int, g: int, b: int) -> bool:
+        """
+        Set RGB color.
+
+        Args:
+            r: Red component 0-255
+            g: Green component 0-255
+            b: Blue component 0-255
+
+        Returns:
+            True if successful
+
+        Raises:
+            Exception if command fails
+
+        Note:
+            Yeelight library expects three separate r, g, b arguments
+            Validation is done in RGBHandler.
+        """
+        # Yeelight library expects three separate arguments
+        await self._run_in_executor(lambda: self.bulb.set_rgb(r, g, b))
+        return True
+
+    async def set_color_temp(self, kelvin: int) -> bool:
+        """
+        Set color temperature.
+
+        Args:
+            kelvin: Color temperature in Kelvin (1700-6500 for Yeelight)
+
+        Returns:
+            True if successful
+
+        Raises:
+            Exception if command fails
+
+        Note:
+            Validation (temperature presets) is done in ColorTempHandler.
+            Adapter just executes the command.
+        """
+        await self._run_in_executor(self.bulb.set_color_temp, kelvin)
+        return True
+
+    async def start_flow(self, flow) -> bool:
+        """
+        Start a flow effect.
+
+        Args:
+            flow: yeelight.Flow object with effect definition
+
+        Returns:
+            True if successful
+
+        Raises:
+            Exception if command fails
+
+        Note:
+            Flow runs in a loop until stop_flow() is called.
+            Use flow_effects.create_flow() to create Flow objects.
+        """
+        await self._run_in_executor(self.bulb.start_flow, flow)
+        return True
+
+    async def stop_flow(self) -> bool:
+        """
+        Stop currently running flow effect.
+
+        Returns:
+            True if successful
+
+        Raises:
+            Exception if command fails
+
+        Note:
+            Returns device to state before flow started (Flow.actions.recover).
+        """
+        await self._run_in_executor(self.bulb.stop_flow)
         return True
 
     # Helper methods

@@ -22,3 +22,16 @@ class DeviceControlRequest(BaseModel):
     Validation happens in adapter based on device capabilities.
     """
     properties: Dict[str, Any]  # Capability name -> value pairs
+
+
+class EffectStartRequest(BaseModel):
+    """
+    Request to start a flow effect.
+
+    Examples:
+        - {"effect_name": "disco"}
+        - {"effect_name": "rainbow"}
+
+    Available effects: disco, pulse, strobe, rainbow, police, ocean
+    """
+    effect_name: str  # Name of the effect to start

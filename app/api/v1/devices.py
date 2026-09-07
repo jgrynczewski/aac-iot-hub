@@ -4,7 +4,8 @@ Device API endpoints - AAC IoT Hub.
 Universal control endpoint design:
 - ONE endpoint for all capabilities: PUT /devices/{id}/control
 - Client sends: {"properties": {"power": "on", ...}}
-- YAGNI: Start with power only, expand later
+- Uses Strategy Pattern + Registry for OCP compliance
+- Each property delegated to its handler (zero if/elif)
 """
 
 from fastapi import APIRouter, HTTPException
@@ -15,11 +16,14 @@ from app.schemas import (
     Device,
     DeviceCapabilities,
     DeviceControlRequest,
+    EffectStartRequest,
     SuccessResponse,
     ErrorResponse,
     ErrorDetail,
 )
 from app.services import device_registry, discovery_service
+from app.services.property_handlers import property_registry
+from app.services import flow_effects
 
 logger = logging.getLogger(__name__)
 
@@ -126,17 +130,24 @@ async def control_device(device_id: str, request: DeviceControlRequest):
     """
     Universal control endpoint - controls ANY device capability.
 
-    This is the MAIN control endpoint. Client sends any capability changes
-    in a single request.
+    Uses Strategy Pattern + Registry for OCP compliance:
+    - Each property delegated to its handler
+    - Zero if/elif chains
+    - New properties require ZERO changes to this endpoint
+
+    To add new property:
+    1. Create PropertyHandler subclass in property_handlers.py
+    2. Register in property_registry
+    3. Done - this endpoint requires NO modifications
 
     Examples:
         - {"properties": {"power": "on"}}
         - {"properties": {"power": "toggle"}}
-        - Future: {"properties": {"power": "on", "brightness": 80}}
-        - Future: {"properties": {"rgb": [255, 0, 0]}}
+        - {"properties": {"power": "on", "brightness": 80}}
+        - {"properties": {"rgb": [255, 0, 0]}}
 
-    YAGNI: Currently only "power" is implemented.
-    Future capabilities will be added as needed.
+    Currently supported: power
+    Future: brightness, rgb, color_temp (added via handlers)
 
     Args:
         device_id: Device identifier
@@ -160,58 +171,34 @@ async def control_device(device_id: str, request: DeviceControlRequest):
 
     logger.info(f"Control request for {device_id}: {request.properties}")
 
-    # Apply each property change
+    # Delegate each property to its handler
     applied_changes = {}
 
-    for capability, value in request.properties.items():
+    for property_name, value in request.properties.items():
         try:
-            # Route to appropriate adapter method based on capability
-            if capability == "power":
-                # YAGNI: Only power control for now
-                await adapter.set_power(value)
-                applied_changes[capability] = value
+            # Get handler for this property (raises ValueError if unknown)
+            handler = property_registry.get(property_name)
 
-            # Future capabilities (add when implemented):
-            # elif capability == "brightness":
-            #     await adapter.set_brightness(value)
-            #     applied_changes[capability] = value
-            # elif capability == "rgb":
-            #     await adapter.set_color_rgb(value)
-            #     applied_changes[capability] = value
-            # elif capability == "color_temp":
-            #     await adapter.set_color_temp(value)
-            #     applied_changes[capability] = value
+            # Handle property (validates + executes)
+            result = await handler.handle(adapter, value)
+            applied_changes[property_name] = result
 
-            else:
-                # Unknown capability - check if device supports it
-                caps = await adapter.get_capabilities()
-                if capability not in caps.capabilities:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Device {device_id} doesn't support capability: {capability}"
-                    )
-                else:
-                    # Capability exists but not implemented yet
-                    raise HTTPException(
-                        status_code=501,
-                        detail=f"Capability '{capability}' not yet implemented"
-                    )
-
-        except HTTPException:
-            # Re-raise HTTP exceptions
-            raise
         except ValueError as e:
-            # Invalid value for capability
+            # Validation error or unknown property
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid value for {capability}: {str(e)}"
+                detail=str(e)
             )
+
         except Exception as e:
-            # Device communication error
-            logger.error(f"Failed to set {capability} on {device_id}: {e}")
+            # Unexpected error (device communication, etc.)
+            logger.error(
+                f"Error handling property {property_name} for {device_id}: {e}",
+                exc_info=True
+            )
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to control device: {str(e)}"
+                detail=f"Failed to set {property_name}: {str(e)}"
             )
 
     logger.info(f"Successfully applied changes to {device_id}: {applied_changes}")
@@ -223,3 +210,140 @@ async def control_device(device_id: str, request: DeviceControlRequest):
             "applied": applied_changes
         }
     )
+
+
+@router.post("/{device_id}/effect", response_model=SuccessResponse)
+async def start_effect(device_id: str, request: EffectStartRequest):
+    """
+    Start a flow effect on the device.
+
+    Flow effects are predefined light animations that loop infinitely
+    until stopped via the stop_effect endpoint.
+
+    Available effects:
+    - disco: Fast color changes (party mode)
+    - pulse: Breathing effect (red)
+    - strobe: Fast flashing (white)
+    - rainbow: Smooth rainbow cycle
+    - police: Red/blue alternating (alert)
+    - ocean: Calm ocean waves
+
+    Args:
+        device_id: Device identifier
+        request: EffectStartRequest with effect_name
+
+    Returns:
+        SuccessResponse confirming effect started
+
+    Raises:
+        404: Device not found
+        400: Invalid effect name
+        500: Failed to start effect
+
+    Example:
+        POST /devices/{id}/effect
+        {"effect_name": "disco"}
+    """
+    # Get device adapter
+    adapter = device_registry.get(device_id)
+    if not adapter:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Device {device_id} not found"
+        )
+
+    logger.info(f"Starting effect '{request.effect_name}' on {device_id}")
+
+    try:
+        # Create flow object for the requested effect
+        flow = flow_effects.create_flow(request.effect_name)
+
+        # Start the flow on the device
+        await adapter.start_flow(flow)
+
+        logger.info(f"Successfully started effect '{request.effect_name}' on {device_id}")
+
+        return SuccessResponse(
+            success=True,
+            data={
+                "device_id": device_id,
+                "effect": request.effect_name,
+                "status": "started"
+            }
+        )
+
+    except ValueError as e:
+        # Invalid effect name
+        available_effects = flow_effects.get_effect_names()
+        raise HTTPException(
+            status_code=400,
+            detail=f"{str(e)}. Available effects: {', '.join(available_effects)}"
+        )
+
+    except Exception as e:
+        # Unexpected error (device communication, etc.)
+        logger.error(
+            f"Error starting effect '{request.effect_name}' on {device_id}: {e}",
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start effect: {str(e)}"
+        )
+
+
+@router.post("/{device_id}/effect/stop", response_model=SuccessResponse)
+async def stop_effect(device_id: str):
+    """
+    Stop the currently running flow effect.
+
+    Stops any running flow effect and returns the device to the state
+    it was in before the effect started (Flow.actions.recover).
+
+    Args:
+        device_id: Device identifier
+
+    Returns:
+        SuccessResponse confirming effect stopped
+
+    Raises:
+        404: Device not found
+        500: Failed to stop effect
+
+    Example:
+        POST /devices/{id}/effect/stop
+    """
+    # Get device adapter
+    adapter = device_registry.get(device_id)
+    if not adapter:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Device {device_id} not found"
+        )
+
+    logger.info(f"Stopping flow effect on {device_id}")
+
+    try:
+        # Stop the flow
+        await adapter.stop_flow()
+
+        logger.info(f"Successfully stopped flow effect on {device_id}")
+
+        return SuccessResponse(
+            success=True,
+            data={
+                "device_id": device_id,
+                "status": "stopped"
+            }
+        )
+
+    except Exception as e:
+        # Unexpected error (device communication, etc.)
+        logger.error(
+            f"Error stopping flow effect on {device_id}: {e}",
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to stop effect: {str(e)}"
+        )
